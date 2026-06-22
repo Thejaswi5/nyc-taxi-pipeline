@@ -122,3 +122,33 @@ for row in tips:
     print(f"  {payment.get(row[0], 'Other')}: ${row[1]}")
 
 con.close()
+
+
+# ── 6. WINDOW FUNCTION ANALYSIS ──────────────────────────────────
+print("\n--- Top 3 most expensive trips per location (locations with 1000+ trips) ---")
+con = duckdb.connect("taxi.duckdb")
+
+con.execute("""
+    CREATE OR REPLACE TABLE transformed.top_trips_per_location AS
+    WITH ranked AS (
+        SELECT 
+            PULocationID,
+            total_amount,
+            COUNT(*) OVER (PARTITION BY PULocationID) AS location_trip_count,
+            RANK() OVER (PARTITION BY PULocationID ORDER BY total_amount DESC) AS trip_rank
+        FROM raw.trips
+    )
+    SELECT PULocationID, total_amount, location_trip_count, trip_rank
+    FROM ranked
+    WHERE location_trip_count > 1000
+    AND trip_rank <= 3
+    ORDER BY PULocationID, trip_rank
+""")
+
+results = con.execute("""
+    SELECT PULocationID, trip_rank, total_amount, location_trip_count 
+    FROM transformed.top_trips_per_location 
+    LIMIT 10
+""").df()
+print(results.to_string())
+con.close()
