@@ -93,3 +93,32 @@ Early morning airport runs dominate.
 """)
 
 con.close()
+
+# ── 5. MORE INSIGHTS ─────────────────────────────────────────────
+con = duckdb.connect("taxi.duckdb")
+
+print("\n--- Average fare by day of week ---")
+days = con.execute("""
+    SELECT DAYOFWEEK(tpep_pickup_datetime) AS day, 
+           ROUND(AVG(total_amount), 2) AS avg_fare
+    FROM raw.trips
+    GROUP BY day
+    ORDER BY avg_fare DESC
+""").fetchall()
+for row in days:
+    day_name = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][row[0]]
+    print(f"  {day_name}: ${row[1]}")
+
+print("\n--- Average tip by payment type ---")
+tips = con.execute("""
+    SELECT payment_type,
+           ROUND(AVG(tip_amount), 2) AS avg_tip
+    FROM raw.trips
+    GROUP BY payment_type
+    ORDER BY avg_tip DESC
+""").fetchall()
+payment = {1:'Credit Card', 2:'Cash', 3:'No Charge', 4:'Dispute', 0:'Unknown'}
+for row in tips:
+    print(f"  {payment.get(row[0], 'Other')}: ${row[1]}")
+
+con.close()
