@@ -152,3 +152,49 @@ results = con.execute("""
 """).df()
 print(results.to_string())
 con.close()
+
+# ── 7. RUNNING REVENUE + FARE VS LOCATION AVERAGE ────────────────
+con = duckdb.connect("taxi.duckdb")
+
+print("\n--- Running total revenue by hour ---")
+con.execute("""
+    CREATE OR REPLACE TABLE transformed.running_revenue AS
+    WITH hourly AS (
+        SELECT
+            HOUR(tpep_pickup_datetime) AS hour_of_day,
+            ROUND(SUM(total_amount), 2) AS hourly_revenue
+        FROM raw.trips
+        GROUP BY HOUR(tpep_pickup_datetime)
+    )
+    SELECT
+        hour_of_day,
+        hourly_revenue,
+        ROUND(SUM(hourly_revenue) OVER (ORDER BY hour_of_day), 2) AS running_total
+    FROM hourly
+    ORDER BY hour_of_day
+""")
+
+print("\n--- Fare vs location average ---")
+con.execute("""
+    CREATE OR REPLACE TABLE transformed.fare_vs_avg AS
+    WITH fare_diff AS (
+        SELECT
+            PULocationID,
+            total_amount,
+            ROUND(AVG(total_amount) OVER (PARTITION BY PULocationID), 2) AS location_avg
+        FROM raw.trips
+    )
+    SELECT
+        PULocationID,
+        total_amount,
+        location_avg,
+        ROUND(total_amount - location_avg, 2) AS fare_vs_location_avg
+    FROM fare_diff
+""")
+
+results = con.execute("""
+    SELECT * FROM transformed.running_revenue
+""").df()
+print(results.to_string())
+con.close()
+print("\nPipeline complete.")
